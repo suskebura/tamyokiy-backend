@@ -3,7 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const Message = require('../models/Message');
-const User = require('../models/User');
+const User = require('../models/user');
 const { createNotification } = require('./notification');
 const { createAuditLog } = require('../middleware/audit');
 
