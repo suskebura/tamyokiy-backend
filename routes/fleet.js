@@ -4,7 +4,7 @@ const adminAuth = require('../middleware/adminAuth');
 const auth = require('../middleware/auth');
 const Vehicle = require('../models/Vehicle');
 const Maintenance = require('../models/Maintenance');
-const User = require('../models/User');
+const User = require('../models/user');
 const { createAuditLog } = require('../middleware/audit');
 const { createNotification } = require('./notification');
 
