@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const Payment = require('../models/Payment');
+const Payment = require('../models/payment');
 const Shipment = require('../models/Shipment');
 const Invoice = require('../models/Invoice');
 const { createNotification } = require('./notification');
