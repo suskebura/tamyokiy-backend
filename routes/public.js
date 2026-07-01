@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const Shipment = require('../models/Shipment');
-const User = require('../models/User');
+const Shipment = require('../models/shipment');
+const User = require('../models/user');
 
 // ============================================================
 // 🔓 PUBLIC TRACKING - NO LOGIN REQUIRED
