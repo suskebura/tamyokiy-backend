@@ -1,4 +1,4 @@
-const AuditLog = require('../models/AuditLog');
+const AuditLog = require('../models/auditlog');
 
 const auditLog = async (req, res, next) => {
     // Store original json method
