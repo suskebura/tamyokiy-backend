@@ -8,7 +8,7 @@ const { createNotification } = require('./notification');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const calculateETA = require('../utils/etaCalculator');
+const calculateETA = require('../utils/etacalculator');
 const { generateTrackingCodes } = require('../utils/qrCode'); // 👈 UPDATED
 
 // Configure multer for delivery photo upload
