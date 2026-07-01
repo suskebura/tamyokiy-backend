@@ -5,7 +5,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const DriverLocation = require('../models/DriverLocation');
-const User = require('../models/User');
+const User = require('../models/user');
 
 // ===== UPDATE DRIVER LOCATION (Driver only) =====
 router.post('/update', auth, async (req, res) => {
