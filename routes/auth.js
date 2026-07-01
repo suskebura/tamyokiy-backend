@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
-const User = require('../models/User');
+const User = require('../models/user');
 const { recordLogin } = require('../middleware/loginHistory');
 
 // ===== REGISTER CLIENT (default user) =====
