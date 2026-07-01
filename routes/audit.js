@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminAuth = require('../middleware/adminAuth');
-const AuditLog = require('../models/AuditLog');
+const AuditLog = require('../models/Auditlog');
 
 // Get all audit logs (admin only)
 router.get('/', adminAuth, async (req, res, next) => {
