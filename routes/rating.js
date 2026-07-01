@@ -3,8 +3,8 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const Rating = require('../models/Rating');
-const Shipment = require('../models/Shipment');
-const User = require('../models/User');
+const Shipment = require('../models/shipment');
+const User = require('../models/user');
 const { createNotification } = require('./notification');
 const { createAuditLog } = require('../middleware/audit');
 
