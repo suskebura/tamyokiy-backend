@@ -2,11 +2,10 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
-const Shipment = require('../models/Shipment');
-const Payment = require('../models/Payment');
-const Invoice = require('../models/Invoice');
-const User = require('../models/User');
-
+const Shipment = require('../models/shipment');
+const Payment = require('../models/payment');
+const Invoice = require('../models/invoice');
+const User = require('../models/user');
 // ===== GENERATE INVOICE HTML =====
 function generateInvoiceHTML(invoice, shipment, user) {
     // ✅ FIX: Handle null user
