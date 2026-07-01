@@ -3,7 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const Payment = require('../models/payment');
 const Shipment = require('../models/shipment');
-const Invoice = require('../models/Invoice');
+const Invoice = require('../models/invoice');
 const { createNotification } = require('./notification');
 
 // ===== PAYMENT METHODS CONFIG =====
