@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
-const LoginHistory = require('../models/LoginHistory');
+const LoginHistory = require('../models/loginhistory');
 
 // ===== GET USER'S OWN LOGIN HISTORY =====
 router.get('/my-history', auth, async (req, res) => {
