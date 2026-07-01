@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const Shipment = require('../models/Shipment');
+const Shipment = require('../models/shipment');
 const User = require('../models/User');
 const { createNotification } = require('./notification');
 const multer = require('multer');
