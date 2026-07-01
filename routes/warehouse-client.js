@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const WarehouseInventory = require('../models/WarehouseInventory');
-const Shipment = require('../models/Shipment');
-const User = require('../models/User');
+const Shipment = require('../models/shipment');
+const User = require('../models/user');
 const { createNotification } = require('./notification');
 
 // ===== GET CLIENT'S STORED ITEMS =====
