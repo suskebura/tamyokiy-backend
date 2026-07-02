@@ -98,7 +98,7 @@ const notificationRoutes = require('./routes/notification');
 app.use('/api/notifications', notificationRoutes.router);
 
 // ===== LOGIN HISTORY ROUTE =====
-app.use('/api/login-history', require('./routes/loginHistory'));
+app.use('/api/login-history', require('./routes/loginhistory'));
 
 // ===== DRIVER ROUTE =====
 app.use('/api/driver', require('./routes/driver'));
