@@ -12,7 +12,12 @@ const app = express();
 
 // ===== CORS - MUST BE FIRST =====
 app.use(cors({
-    origin: ['http://localhost:5500', 'http://127.0.0.1:5500', 'http://localhost:5000'],
+    origin: [
+        'http://localhost:5500',
+        'http://127.0.0.1:5500',
+        'http://localhost:5000',
+        'https://tamyokiy-frontend.onrender.com'  // 👈 ADDED YOUR FRONTEND URL
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -60,7 +65,7 @@ app.use('/api/public', (req, res, next) => next());
 app.use('/api/rating', (req, res, next) => next());
 app.use('/api/warehouse', (req, res, next) => next());
 app.use('/api/routes', (req, res, next) => next());
-app.use('/api/driver-location', (req, res, next) => next()); // ✅ ADDED
+app.use('/api/driver-location', (req, res, next) => next());
 
 app.use(mongoSanitize());
 app.use(xss());
@@ -93,7 +98,7 @@ const notificationRoutes = require('./routes/notification');
 app.use('/api/notifications', notificationRoutes.router);
 
 // ===== LOGIN HISTORY ROUTE =====
-app.use('/api/login-history', require('./routes/loginhistory'));
+app.use('/api/login-history', require('./routes/loginHistory'));
 
 // ===== DRIVER ROUTE =====
 app.use('/api/driver', require('./routes/driver'));
@@ -147,7 +152,7 @@ app.use('/api/fleet', require('./routes/fleet'));
 app.use('/api/tickets', require('./routes/tickets'));
 
 // ============================================================
-// 📡 DRIVER LOCATION ROUTE - NEW (STEP 3)
+// 📡 DRIVER LOCATION ROUTE - NEW
 // ============================================================
 app.use('/api/driver-location', require('./routes/driverLocation'));
 
