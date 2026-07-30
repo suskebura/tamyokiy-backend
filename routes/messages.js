@@ -4,8 +4,31 @@ const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const Message = require('../models/Message');
 const User = require('../models/User');
-const { createNotification } = require('./notification');
+// ❌ REMOVE THIS LINE: const { createNotification } = require('./notification');
 const { createAuditLog } = require('../middleware/audit');
+
+// ============================================================
+// ✅ NOTIFICATION HELPER (inline to avoid circular dependency)
+// ============================================================
+async function createNotification(userId, title, message, type = 'info', link = null) {
+    try {
+        const Notification = require('../models/Notification');
+        const notification = new Notification({
+            userId: userId,
+            title: title,
+            message: message,
+            type: type,
+            link: link,
+            read: false,
+            createdAt: new Date()
+        });
+        await notification.save();
+        return notification;
+    } catch (err) {
+        console.error('❌ Failed to create notification:', err.message);
+        return null;
+    }
+}
 
 // ================================================================
 // GET ALL CONVERSATIONS FOR A USER
@@ -215,7 +238,7 @@ router.post('/send', auth, async (req, res, next) => {
         await newMessage.populate('senderId', 'name email role profilePicture');
         await newMessage.populate('receiverId', 'name email role profilePicture');
         
-        // 🔔 Send notification to receiver
+        // 🔔 Send notification to receiver - NOW USING INLINE FUNCTION
         await createNotification(
             receiverId,
             '📩 New Message',

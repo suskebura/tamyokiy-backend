@@ -15,16 +15,20 @@ const UserSchema = new mongoose.Schema({
     type: String, 
     required: true 
   },
+  // ✅ PHONE FIELD - REQUIRED, UNIQUE, WITH TRIM
+  phone: { 
+    type: String, 
+    required: true,
+    unique: true,
+    sparse: true,  // Allows multiple null values but maintains uniqueness for non-null
+    trim: true     // Removes whitespace from both ends
+  },
   role: { 
     type: String, 
     enum: ['admin', 'client', 'driver'],
     default: 'client' 
   },
   // ===== DRIVER SPECIFIC FIELDS =====
-  phone: { 
-    type: String, 
-    default: null 
-  },
   licenseNumber: { 
     type: String, 
     default: null 
@@ -87,25 +91,63 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  // ===== DRIVER PREFERENCES =====
+  preferredAreas: { 
+    type: [String], 
+    default: [] 
+  },
+  maxDistance: { 
+    type: Number, 
+    default: 20 
+  },
+  shiftStart: { 
+    type: String, 
+    default: '08:00' 
+  },
+  shiftEnd: { 
+    type: String, 
+    default: '20:00' 
+  },
+  workingDays: { 
+    type: [Number], 
+    default: [1, 2, 3, 4, 5, 6] 
+  },
+  // ===== DEVICE TOKENS =====
+  deviceToken: { 
+    type: String, 
+    default: null 
+  },
+  fcmToken: { 
+    type: String, 
+    default: null 
+  },
   createdAt: { 
     type: Date, 
     default: Date.now 
   }
 });
 
-// Hash password before saving
+// ============================================================
+// 🔐 HASH PASSWORD BEFORE SAVING
+// ============================================================
 UserSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
 
-// Compare password method
+// ============================================================
+// 🔑 COMPARE PASSWORD METHOD
+// ============================================================
 UserSchema.methods.comparePassword = async function(password) {
   return await bcrypt.compare(password, this.password);
 };
 
-// Method to check if account is locked
+// ============================================================
+// 🔒 ACCOUNT LOCK METHODS
+// ============================================================
+
+// Check if account is locked
 UserSchema.methods.isAccountLocked = function() {
   if (!this.isLocked) return false;
   
@@ -124,7 +166,7 @@ UserSchema.methods.isAccountLocked = function() {
   return true;
 };
 
-// Method to record failed login
+// Record failed login attempt
 UserSchema.methods.recordFailedLogin = async function() {
   this.failedLoginAttempts += 1;
   this.lastFailedLoginAt = new Date();
@@ -144,7 +186,7 @@ UserSchema.methods.recordFailedLogin = async function() {
   return this.isLocked;
 };
 
-// Method to reset failed attempts on successful login
+// Reset failed attempts on successful login
 UserSchema.methods.resetFailedAttempts = async function() {
   this.failedLoginAttempts = 0;
   this.lastFailedLoginAt = null;
@@ -154,5 +196,68 @@ UserSchema.methods.resetFailedAttempts = async function() {
   this.lockExpiresAt = null;
   await this.save();
 };
+
+// ============================================================
+// 📊 VIRTUAL FIELDS
+// ============================================================
+
+// Get full name with role badge
+UserSchema.virtual('displayName').get(function() {
+  const roleEmoji = {
+    admin: '👑',
+    driver: '🚚',
+    client: '👤'
+  };
+  return `${roleEmoji[this.role] || ''} ${this.name}`;
+});
+
+// Get driver availability status
+UserSchema.virtual('availabilityStatus').get(function() {
+  if (this.role !== 'driver') return null;
+  const statusMap = {
+    available: '✅ Available',
+    on_delivery: '📦 On Delivery',
+    offline: '⭕ Offline',
+    busy: '🔴 Busy'
+  };
+  return statusMap[this.driverStatus] || this.driverStatus;
+});
+
+// ============================================================
+// 📊 STATIC METHODS
+// ============================================================
+
+// Find available drivers
+UserSchema.statics.findAvailableDrivers = function() {
+  return this.find({
+    role: 'driver',
+    driverStatus: 'available'
+  }).select('name email phone rating vehicleType driverStatus');
+};
+
+// Find drivers by location proximity (requires geospatial index)
+UserSchema.statics.findNearbyDrivers = function(lat, lng, maxDistance = 10) {
+  // This requires a geospatial index on location field
+  // Add location field if needed
+  return this.find({
+    role: 'driver',
+    driverStatus: 'available'
+  }).select('name email phone rating vehicleType driverStatus');
+};
+
+// ============================================================
+// 🔍 INDEXES
+// ============================================================
+
+// Create indexes for better query performance
+UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ phone: 1 }, { unique: true, sparse: true });
+UserSchema.index({ role: 1 });
+UserSchema.index({ driverStatus: 1 });
+UserSchema.index({ isLocked: 1 });
+UserSchema.index({ createdAt: -1 });
+
+// Compound index for driver queries
+UserSchema.index({ role: 1, driverStatus: 1 });
 
 module.exports = mongoose.model('User', UserSchema);

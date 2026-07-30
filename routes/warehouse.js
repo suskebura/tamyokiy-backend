@@ -6,8 +6,31 @@ const Warehouse = require('../models/Warehouse');
 const WarehouseInventory = require('../models/WarehouseInventory');
 const Shipment = require('../models/Shipment');
 const User = require('../models/User');
-const { createNotification } = require('./notification');
+// ❌ REMOVE THIS LINE: const { createNotification } = require('./notification');
 const { createAuditLog } = require('../middleware/audit');
+
+// ============================================================
+// ✅ NOTIFICATION HELPER (inline to avoid circular dependency)
+// ============================================================
+async function createNotification(userId, title, message, type = 'info', link = null) {
+    try {
+        const Notification = require('../models/Notification');
+        const notification = new Notification({
+            userId: userId,
+            title: title,
+            message: message,
+            type: type,
+            link: link,
+            read: false,
+            createdAt: new Date()
+        });
+        await notification.save();
+        return notification;
+    } catch (err) {
+        console.error('❌ Failed to create notification:', err.message);
+        return null;
+    }
+}
 
 // ================================================================
 // 📦 WAREHOUSE MANAGEMENT
@@ -247,7 +270,7 @@ router.post('/inventory/receive', adminAuth, async (req, res) => {
         });
         await shipment.save();
         
-        // Notify customer
+        // Notify customer - NOW USING INLINE FUNCTION
         await createNotification(
             shipment.userId,
             '📦 Shipment Arrived at Warehouse',
@@ -338,7 +361,7 @@ router.put('/inventory/:inventoryId/status', adminAuth, async (req, res) => {
                 });
                 await shipment.save();
                 
-                // Notify customer
+                // Notify customer - NOW USING INLINE FUNCTION
                 await createNotification(
                     shipment.userId,
                     '🚚 Shipment Out for Delivery',
@@ -369,7 +392,7 @@ router.put('/inventory/:inventoryId/status', adminAuth, async (req, res) => {
                     await warehouse.save();
                 }
                 
-                // Notify customer
+                // Notify customer - NOW USING INLINE FUNCTION
                 await createNotification(
                     shipment.userId,
                     '✅ Shipment Delivered!',
@@ -489,7 +512,7 @@ router.put('/inventory/:inventoryId/assign-driver', adminAuth, async (req, res) 
             await shipment.save();
         }
         
-        // Notify driver
+        // Notify driver - NOW USING INLINE FUNCTION
         await createNotification(
             driver._id,
             '📦 New Shipment Ready for Pickup',

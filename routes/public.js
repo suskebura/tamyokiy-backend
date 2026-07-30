@@ -7,7 +7,7 @@ const User = require('../models/User');
 // 🔓 PUBLIC TRACKING - NO LOGIN REQUIRED
 // ============================================================
 
-// ===== PUBLIC TRACKING WITH REAL DRIVER DATA + QR CODE + BARCODE =====
+// ===== PUBLIC TRACKING WITH REAL DRIVER DATA + QR CODE + BARCODE + COORDINATES =====
 router.get('/track/:trackingNumber', async (req, res) => {
     try {
         const shipment = await Shipment.findOne({ 
@@ -48,14 +48,17 @@ router.get('/track/:trackingNumber', async (req, res) => {
         }
         
         // ============================================================
-        // 🔥 FIXED: Return BOTH QR Code AND Barcode
+        // 🔥 FIXED: Return ALL fields including coordinates for ETA
         // ============================================================
         const publicData = {
             trackingNumber: shipment.trackingNumber,
             status: shipment.status,
             senderName: shipment.senderName,
+            senderAddress: shipment.senderAddress,
             receiverName: shipment.receiverName,
+            receiverAddress: shipment.receiverAddress,
             weight: shipment.weight,
+            amount: shipment.amount,
             estimatedDelivery: shipment.estimatedDelivery,
             serviceType: shipment.serviceType,
             trackingHistory: shipment.trackingHistory || [],
@@ -66,8 +69,16 @@ router.get('/track/:trackingNumber', async (req, res) => {
             driver: driverData,
             // 👇 QR CODE
             qrCode: shipment.qrCode || null,
-            // 👇 BARCODE - ADDED
+            // 👇 BARCODE
             barcode: shipment.barcode || null,
+            // 👇 🔥 FIXED: COORDINATES FOR AI ETA - NOW RETURNED!
+            senderLat: shipment.senderLat || null,
+            senderLng: shipment.senderLng || null,
+            receiverLat: shipment.receiverLat || null,
+            receiverLng: shipment.receiverLng || null,
+            // 👇 REAL-TIME ETA DATA
+            realTimeETA: shipment.realTimeETA || null,
+            delayRisk: shipment.delayRisk || null,
             // Show delivery proof (if delivered)
             deliveryStatus: shipment.status === 'delivered' ? {
                 deliveredAt: shipment.deliveryProof?.deliveredAt,
@@ -124,12 +135,14 @@ router.get('/track/:trackingNumber/progress', async (req, res) => {
             progress: Math.round(progress),
             estimatedDelivery: shipment.estimatedDelivery,
             lastUpdate: shipment.trackingHistory?.slice(-1)[0] || null,
-            // Also return driver info in progress
             driver: shipment.assignedDriverName || null,
-            // 👇 QR CODE
             qrCode: shipment.qrCode || null,
-            // 👇 BARCODE - ADDED
-            barcode: shipment.barcode || null
+            barcode: shipment.barcode || null,
+            // 🔥 FIXED: Return coordinates for ETA
+            senderLat: shipment.senderLat || null,
+            senderLng: shipment.senderLng || null,
+            receiverLat: shipment.receiverLat || null,
+            receiverLng: shipment.receiverLng || null
         });
     } catch (err) {
         res.status(500).json({

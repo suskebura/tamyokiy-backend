@@ -1,9 +1,29 @@
 const express = require('express');
 const router = express.Router();
-const Contact = require('../models/contact'); // ✅ FIXED: lowercase 'contact'
-const User = require('../models/user'); // ✅ FIXED: lowercase 'user'
-const { createNotification } = require('./notification');
+const Contact = require('../models/Contact');
+const User = require('../models/User');
 const nodemailer = require('nodemailer');
+
+// ✅ Notification helper (inline to avoid circular dependency)
+async function createNotification(userId, title, message, type = 'info', link = null) {
+    try {
+        const Notification = require('../models/Notification');
+        const notification = new Notification({
+            userId: userId,
+            title: title,
+            message: message,
+            type: type,
+            link: link,
+            read: false,
+            createdAt: new Date()
+        });
+        await notification.save();
+        return notification;
+    } catch (err) {
+        console.error('❌ Failed to create notification:', err.message);
+        return null;
+    }
+}
 
 // Configure email transporter
 const transporter = nodemailer.createTransport({

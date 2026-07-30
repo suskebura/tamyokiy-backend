@@ -1,5 +1,3 @@
-// models/DriverLocation.js
-
 const mongoose = require('mongoose');
 
 const DriverLocationSchema = new mongoose.Schema({
@@ -7,7 +5,7 @@ const DriverLocationSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
-        unique: true
+        index: true
     },
     driverName: {
         type: String,
@@ -19,17 +17,15 @@ const DriverLocationSchema = new mongoose.Schema({
     },
     vehicleType: {
         type: String,
-        default: null
+        default: 'Standard Vehicle'
     },
     lat: {
         type: Number,
-        required: true,
-        default: 0
+        required: true
     },
     lng: {
         type: Number,
-        required: true,
-        default: 0
+        required: true
     },
     accuracy: {
         type: Number,
@@ -61,24 +57,41 @@ const DriverLocationSchema = new mongoose.Schema({
         type: String,
         default: null
     },
-    updatedAt: {
+    history: [{
+        lat: Number,
+        lng: Number,
+        speed: Number,
+        timestamp: {
+            type: Date,
+            default: Date.now
+        }
+    }],
+    createdAt: {
         type: Date,
         default: Date.now
     },
-    history: [{
-        lat: { type: Number },
-        lng: { type: Number },
-        timestamp: { type: Date, default: Date.now },
-        speed: { type: Number, default: 0 }
-    }]
+    updatedAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
-// Limit history to last 100 entries
-DriverLocationSchema.methods.addToHistory = function(lat, lng, speed = 0) {
-    this.history.push({ lat, lng, speed, timestamp: new Date() });
+// ✅ ADD THIS METHOD
+DriverLocationSchema.methods.addToHistory = function(lat, lng, speed) {
+    this.history.push({
+        lat: lat,
+        lng: lng,
+        speed: speed || 0,
+        timestamp: new Date()
+    });
     if (this.history.length > 100) {
         this.history = this.history.slice(-100);
     }
 };
 
+// ✅ Indexes
+DriverLocationSchema.index({ driverId: 1, updatedAt: -1 });
+DriverLocationSchema.index({ trackingNumber: 1 });
+
+// ✅ EXPORT
 module.exports = mongoose.model('DriverLocation', DriverLocationSchema);

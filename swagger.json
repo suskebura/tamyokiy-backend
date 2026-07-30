@@ -1,0 +1,126 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+      "title": "TAMYOKIY Logistics API",
+      "description": "B2B Logistics Platform API",
+      "version": "1.0.0",
+      "contact": {
+        "name": "TAMYOKIY Support",
+        "email": "support@tamyokiy.com"
+      }
+    },
+    "servers": [
+      {
+        "url": "https://api.tamyokiy.com/api/v1",
+        "description": "Production Server"
+      },
+      {
+        "url": "http://localhost:5000/api/v1",
+        "description": "Development Server"
+      }
+    ],
+    "security": [
+      {
+        "ApiKeyAuth": []
+      }
+    ],
+    "paths": {
+      "/shipments": {
+        "get": {
+          "summary": "List all shipments",
+          "parameters": [
+            {
+              "name": "status",
+              "in": "query",
+              "schema": {
+                "type": "string",
+                "enum": ["pending", "assigned", "in_transit", "delivered", "cancelled"]
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "List of shipments"
+            }
+          }
+        },
+        "post": {
+          "summary": "Create a new shipment",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pickupAddress": {"type": "object"},
+                    "deliveryAddress": {"type": "object"},
+                    "packageDetails": {"type": "string"},
+                    "weight": {"type": "number"},
+                    "priority": {"type": "string", "enum": ["standard", "express", "premium"]}
+                  }
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Shipment created"
+            }
+          }
+        }
+      },
+      "/tracking/{trackingNumber}": {
+        "get": {
+          "summary": "Public shipment tracking",
+          "parameters": [
+            {
+              "name": "trackingNumber",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Tracking information"
+            }
+          }
+        }
+      },
+      "/webhooks": {
+        "get": {
+          "summary": "List webhook subscriptions"
+        },
+        "post": {
+          "summary": "Create webhook subscription",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {"type": "string", "format": "uri"},
+                    "events": {"type": "array", "items": {"type": "string"}},
+                    "secret": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "securitySchemes": {
+        "ApiKeyAuth": {
+          "type": "apiKey",
+          "in": "header",
+          "name": "x-api-key"
+        }
+      }
+    }
+  }

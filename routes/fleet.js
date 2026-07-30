@@ -2,11 +2,34 @@ const express = require('express');
 const router = express.Router();
 const adminAuth = require('../middleware/adminAuth');
 const auth = require('../middleware/auth');
-const Vehicle = require('../models/Vehicle');
+const Vehicle = require('../models/Vehicle');  // ✅ Using Vehicle model
 const Maintenance = require('../models/Maintenance');
 const User = require('../models/User');
 const { createAuditLog } = require('../middleware/audit');
-const { createNotification } = require('./notification');
+// ❌ REMOVE THIS LINE: const { createNotification } = require('./notification');
+
+// ============================================================
+// ✅ NOTIFICATION HELPER (inline to avoid circular dependency)
+// ============================================================
+async function createNotification(userId, title, message, type = 'info', link = null) {
+    try {
+        const Notification = require('../models/Notification');
+        const notification = new Notification({
+            userId: userId,
+            title: title,
+            message: message,
+            type: type,
+            link: link,
+            read: false,
+            createdAt: new Date()
+        });
+        await notification.save();
+        return notification;
+    } catch (err) {
+        console.error('❌ Failed to create notification:', err.message);
+        return null;
+    }
+}
 
 // ============================================================
 // 🚛 VEHICLE MANAGEMENT
@@ -551,7 +574,7 @@ router.put('/maintenance/:id/status', adminAuth, async (req, res) => {
 });
 
 // ============================================================
-// 📊 FLEET REPORTS - STEP 1
+// 📊 FLEET REPORTS
 // ============================================================
 
 // ===== GET FLEET SUMMARY REPORT =====
@@ -782,7 +805,7 @@ router.get('/reports/export-pdf', adminAuth, async (req, res) => {
 });
 
 // ============================================================
-// 🗺️ VEHICLE GPS TRACKING - STEP 2
+// 🗺️ VEHICLE GPS TRACKING
 // ============================================================
 
 // ===== GET VEHICLE LOCATION BY PLATE NUMBER =====
@@ -989,7 +1012,7 @@ router.put('/vehicles/gps/update', auth, async (req, res) => {
 });
 
 // ============================================================
-// 📊 FLEET ANALYTICS DASHBOARD - STEP 3.1
+// 📊 FLEET ANALYTICS DASHBOARD
 // ============================================================
 
 // ===== GET FLEET ANALYTICS DATA =====

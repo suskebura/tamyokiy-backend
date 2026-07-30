@@ -4,7 +4,34 @@ const auth = require('../middleware/auth');
 const WarehouseInventory = require('../models/WarehouseInventory');
 const Shipment = require('../models/Shipment');
 const User = require('../models/User');
-const { createNotification } = require('./notification');
+// ❌ REMOVE THIS LINE: const { createNotification } = require('./notification');
+
+// ============================================================
+// ✅ NOTIFICATION HELPER (inline to avoid circular dependency)
+// ============================================================
+async function createNotification(userId, title, message, type = 'info', link = null) {
+    try {
+        const Notification = require('../models/Notification');
+        const notification = new Notification({
+            userId: userId,
+            title: title,
+            message: message,
+            type: type,
+            link: link,
+            read: false,
+            createdAt: new Date()
+        });
+        await notification.save();
+        return notification;
+    } catch (err) {
+        console.error('❌ Failed to create notification:', err.message);
+        return null;
+    }
+}
+
+// ================================================================
+// 📦 DRIVER PICKUP ROUTES
+// ================================================================
 
 // ===== GET PICKUPS FOR DRIVER =====
 router.get('/pickups', auth, async (req, res) => {
@@ -113,7 +140,7 @@ router.put('/pickup/:trackingNumber', auth, async (req, res) => {
         });
         await shipment.save();
         
-        // Notify client
+        // Notify client - NOW USING INLINE FUNCTION
         await createNotification(
             shipment.userId,
             '🚚 Shipment Picked Up',

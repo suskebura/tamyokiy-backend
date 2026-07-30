@@ -1,54 +1,57 @@
 const mongoose = require('mongoose');
 
 const PaymentSchema = new mongoose.Schema({
-    userId: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'User', 
-        required: true 
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
-    shipmentId: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Shipment' 
+    trackingNumber: {
+        type: String,
+        required: true,
+        index: true
     },
-    trackingNumber: { 
-        type: String 
+    amount: {
+        type: Number,
+        required: true
     },
-    amount: { 
-        type: Number, 
-        required: true 
-    },
-    currency: { 
-        type: String, 
-        default: 'usd' 
-    },
-    paymentMethod: { 
-        type: String, 
-        enum: ['credit_card', 'apple_pay', 'google_pay', 'paypal', 'cash'],
+    paymentMethod: {
+        type: String,
+        enum: ['credit_card', 'apple_pay', 'google_pay', 'paypal', 'bank_transfer'],
         default: 'credit_card'
     },
-    stripePaymentIntentId: { 
-        type: String, 
-        required: true, 
-        unique: true 
+    status: {
+        type: String,
+        enum: ['pending', 'succeeded', 'failed', 'refunded'],
+        default: 'pending'
     },
-    status: { 
-        type: String, 
-        enum: ['pending', 'succeeded', 'failed', 'refunded', 'canceled'],
-        default: 'pending' 
+    // ✅ FIXED: Make stripePaymentIntentId optional
+    stripePaymentIntentId: {
+        type: String,
+        default: null
     },
-    receiptUrl: { 
-        type: String 
+    stripePaymentMethodId: {
+        type: String,
+        default: null
     },
-    metadata: { 
-        type: Object 
+    shippingType: {
+        type: String,
+        enum: ['standard', 'eco', 'premium-eco'],
+        default: 'standard'
     },
-    createdAt: { 
-        type: Date, 
-        default: Date.now 
+    offsetCarbon: {
+        type: Boolean,
+        default: false
     },
-    paidAt: { 
-        type: Date 
+    carbonData: {
+        co2: { type: Number, default: 0 },
+        treesPlanted: { type: Number, default: 0 }
+    },
+    paidAt: {
+        type: Date
     }
+}, {
+    timestamps: true
 });
 
 module.exports = mongoose.model('Payment', PaymentSchema);

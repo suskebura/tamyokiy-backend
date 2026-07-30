@@ -4,7 +4,34 @@ const auth = require('../middleware/auth');
 const WarehouseInventory = require('../models/WarehouseInventory');
 const Shipment = require('../models/Shipment');
 const User = require('../models/User');
-const { createNotification } = require('./notification');
+// ❌ REMOVE THIS LINE: const { createNotification } = require('./notification');
+
+// ============================================================
+// ✅ NOTIFICATION HELPER (inline to avoid circular dependency)
+// ============================================================
+async function createNotification(userId, title, message, type = 'info', link = null) {
+    try {
+        const Notification = require('../models/Notification');
+        const notification = new Notification({
+            userId: userId,
+            title: title,
+            message: message,
+            type: type,
+            link: link,
+            read: false,
+            createdAt: new Date()
+        });
+        await notification.save();
+        return notification;
+    } catch (err) {
+        console.error('❌ Failed to create notification:', err.message);
+        return null;
+    }
+}
+
+// ================================================================
+// 📦 CLIENT STORAGE ROUTES
+// ================================================================
 
 // ===== GET CLIENT'S STORED ITEMS =====
 router.get('/my-items', auth, async (req, res) => {
@@ -86,7 +113,7 @@ router.post('/request-dispatch', auth, async (req, res) => {
         inventory.notes = `Dispatch requested by ${req.user.name}. New address: ${deliveryAddress}`;
         await inventory.save();
         
-        // Find admin users to notify
+        // Find admin users to notify - NOW USING INLINE FUNCTION
         const admins = await User.find({ role: 'admin' });
         for (const admin of admins) {
             await createNotification(

@@ -5,8 +5,31 @@ const adminAuth = require('../middleware/adminAuth');
 const Rating = require('../models/Rating');
 const Shipment = require('../models/Shipment');
 const User = require('../models/User');
-const { createNotification } = require('./notification');
+// ❌ REMOVE THIS LINE: const { createNotification } = require('./notification');
 const { createAuditLog } = require('../middleware/audit');
+
+// ============================================================
+// ✅ NOTIFICATION HELPER (inline to avoid circular dependency)
+// ============================================================
+async function createNotification(userId, title, message, type = 'info', link = null) {
+    try {
+        const Notification = require('../models/Notification');
+        const notification = new Notification({
+            userId: userId,
+            title: title,
+            message: message,
+            type: type,
+            link: link,
+            read: false,
+            createdAt: new Date()
+        });
+        await notification.save();
+        return notification;
+    } catch (err) {
+        console.error('❌ Failed to create notification:', err.message);
+        return null;
+    }
+}
 
 // ================================================================
 // SUBMIT RATING FOR A DELIVERED SHIPMENT
@@ -112,7 +135,7 @@ router.post('/submit', auth, async (req, res) => {
             rating: driverStats.averageRating
         });
 
-        // Notify driver
+        // Notify driver - NOW USING INLINE FUNCTION
         await createNotification(
             shipment.assignedDriver,
             '⭐ New Rating Received!',
@@ -121,7 +144,7 @@ router.post('/submit', auth, async (req, res) => {
             trackingNumber
         );
 
-        // Notify customer (thank you)
+        // Notify customer (thank you) - NOW USING INLINE FUNCTION
         await createNotification(
             req.user.id,
             '🙏 Thank You for Your Feedback!',

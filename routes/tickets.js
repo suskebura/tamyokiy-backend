@@ -1,3 +1,4 @@
+// routes/tickets.js
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
@@ -5,11 +6,45 @@ const adminAuth = require('../middleware/adminAuth');
 const Ticket = require('../models/Ticket');
 const TicketReply = require('../models/TicketReply');
 const User = require('../models/User');
-const { createNotification } = require('./notification');
+// ❌ REMOVE THIS LINE: const { createNotification } = require('./notification');
 const { createAuditLog } = require('../middleware/audit');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+
+// ============================================================
+// ✅ NOTIFICATION HELPER (inline to avoid circular dependency)
+// ============================================================
+async function createNotification(userId, title, message, type = 'info', link = null) {
+    try {
+        const Notification = require('../models/Notification');
+        const notification = new Notification({
+            userId: userId,
+            title: title,
+            message: message,
+            type: type,
+            link: link,
+            read: false,
+            createdAt: new Date()
+        });
+        await notification.save();
+        return notification;
+    } catch (err) {
+        console.error('❌ Failed to create notification:', err.message);
+        return null;
+    }
+}
+
+// ============================================================
+// 📊 SENTIMENT SERVICE - ADDED
+// ============================================================
+let sentimentService = null;
+try {
+    sentimentService = require('../services/sentimentService');
+    console.log('✅ Sentiment service loaded for tickets');
+} catch (err) {
+    console.log('⚠️ Sentiment service not available:', err.message);
+}
 
 // ============================================================
 // 📁 ATTACHMENT UPLOAD SETUP
@@ -83,19 +118,80 @@ router.post('/', auth, upload.array('attachments', 5), async (req, res) => {
 
         await ticket.save();
 
-        // Notify admins
+        // 🆕 AUTO-ANALYZE SENTIMENT WITH ESCALATION
+        if (sentimentService) {
+            try {
+                const result = await sentimentService.analyzeTicket(ticket._id);
+                console.log(`📊 Sentiment analyzed for ticket ${ticket.ticketNumber}`);
+                
+                // Check if ticket should be escalated based on sentiment
+                if (result?.sentiment?.isUrgent || result?.sentiment?.isAngry) {
+                    // Auto-escalate priority
+                    const escalatedPriority = ticket.priority === 'low' ? 'medium' :
+                                             ticket.priority === 'medium' ? 'high' :
+                                             ticket.priority === 'high' ? 'critical' : 'high';
+                    
+                    ticket.priority = escalatedPriority;
+                    ticket.escalated = true;
+                    ticket.escalatedReason = `Auto-escalated due to ${result.sentiment.isUrgent ? 'urgent' : 'angry'} sentiment`;
+                    ticket.escalatedAt = new Date();
+                    
+                    // Add internal note
+                    if (!ticket.internalNotes) ticket.internalNotes = [];
+                    ticket.internalNotes.push({
+                        text: `🚨 Auto-escalated to ${escalatedPriority} priority. Sentiment: ${result.sentiment.sentiment} (Score: ${result.sentiment.score})`,
+                        createdBy: 'Sentiment Analysis Bot',
+                        createdAt: new Date(),
+                        isSystem: true
+                    });
+                    
+                    await ticket.save();
+                    
+                    console.log(`   🚨 Ticket ${ticket.ticketNumber} auto-escalated to ${escalatedPriority}`);
+                    
+                    // Notify admins about escalation - NOW USING INLINE FUNCTION
+                    const admins = await User.find({ role: 'admin' });
+                    for (const admin of admins) {
+                        await createNotification(
+                            admin._id,
+                            `🚨 Ticket Escalated: #${ticket.ticketNumber}`,
+                            `Ticket has been auto-escalated to ${escalatedPriority} priority due to ${result.sentiment.isUrgent ? 'urgent' : 'angry'} sentiment.\nTitle: ${ticket.title}`,
+                            'error',
+                            ticket._id
+                        );
+                    }
+                }
+                
+                // Check if sentiment is very positive (satisfied customer)
+                if (result?.sentiment?.sentiment === 'positive' && result?.sentiment?.score > 0.8) {
+                    if (!ticket.internalNotes) ticket.internalNotes = [];
+                    ticket.internalNotes.push({
+                        text: `😊 Very positive sentiment detected (Score: ${result.sentiment.score}). Customer seems happy.`,
+                        createdBy: 'Sentiment Analysis Bot',
+                        createdAt: new Date(),
+                        isSystem: true
+                    });
+                    await ticket.save();
+                }
+                
+            } catch (sentimentErr) {
+                console.error('Sentiment analysis error:', sentimentErr.message);
+            }
+        }
+
+        // Notify admins - NOW USING INLINE FUNCTION
         const admins = await User.find({ role: 'admin' });
         for (const admin of admins) {
             await createNotification(
                 admin._id,
                 '🎫 New Support Ticket',
                 `New ticket #${ticket.ticketNumber} from ${user.name}: ${title}`,
-                'info',
+                ticket.escalated ? 'error' : 'info',
                 ticket._id
             );
         }
 
-        // Notify user
+        // Notify user - NOW USING INLINE FUNCTION
         await createNotification(
             req.user.id,
             '✅ Ticket Created',
@@ -240,7 +336,30 @@ router.post('/:id/reply', auth, upload.array('attachments', 5), async (req, res)
         }
         await ticket.save();
 
-        // Notify
+        // 🆕 Re-analyze sentiment on reply
+        if (sentimentService) {
+            try {
+                const result = await sentimentService.analyzeTicket(ticket._id);
+                console.log(`📊 Sentiment re-analyzed for ticket ${ticket.ticketNumber}`);
+                
+                // Check if sentiment improved (customer is happier)
+                if (result?.sentiment?.sentiment === 'positive' && result?.sentiment?.score > 0.7) {
+                    if (!ticket.internalNotes) ticket.internalNotes = [];
+                    ticket.internalNotes.push({
+                        text: `😊 Customer sentiment improved to positive (Score: ${result.sentiment.score})`,
+                        createdBy: 'Sentiment Analysis Bot',
+                        createdAt: new Date(),
+                        isSystem: true
+                    });
+                    await ticket.save();
+                }
+                
+            } catch (sentimentErr) {
+                console.error('Sentiment re-analysis error:', sentimentErr.message);
+            }
+        }
+
+        // Notify - NOW USING INLINE FUNCTION
         const notifyUserId = req.user.role === 'admin' ? ticket.userId : (ticket.assignedTo || (await User.findOne({ role: 'admin' }))._id);
         if (notifyUserId && notifyUserId.toString() !== req.user.id) {
             await createNotification(
@@ -337,6 +456,7 @@ router.put('/admin/:id/status', adminAuth, async (req, res) => {
         }
         await ticket.save();
 
+        // Notify user - NOW USING INLINE FUNCTION
         await createNotification(
             ticket.userId,
             `📌 Ticket #${ticket.ticketNumber} Status Updated`,
@@ -391,6 +511,7 @@ router.put('/admin/:id/assign', adminAuth, async (req, res) => {
         ticket.assignedToName = agent.name;
         await ticket.save();
 
+        // Notify agent - NOW USING INLINE FUNCTION
         await createNotification(
             agent._id,
             '📋 Ticket Assigned',
@@ -399,6 +520,7 @@ router.put('/admin/:id/assign', adminAuth, async (req, res) => {
             ticket._id
         );
 
+        // Notify user - NOW USING INLINE FUNCTION
         await createNotification(
             ticket.userId,
             '📋 Ticket Assigned',
@@ -445,6 +567,18 @@ router.get('/admin/stats', adminAuth, async (req, res) => {
             { $group: { _id: '$priority', count: { $sum: 1 } } }
         ]);
 
+        // Sentiment stats
+        const sentimentStats = await Ticket.aggregate([
+            { $match: { 'sentiment.label': { $ne: null } } },
+            { $group: {
+                _id: '$sentiment.label',
+                count: { $sum: 1 },
+                avgScore: { $avg: '$sentiment.score' }
+            }}
+        ]);
+
+        const escalatedTickets = await Ticket.countDocuments({ escalated: true });
+
         res.json({
             success: true,
             stats: {
@@ -454,13 +588,112 @@ router.get('/admin/stats', adminAuth, async (req, res) => {
                 onHold,
                 resolved,
                 closed,
+                escalated: escalatedTickets,
                 byCategory,
-                byPriority
+                byPriority,
+                sentiment: {
+                    withSentiment: await Ticket.countDocuments({ 'sentiment.label': { $ne: null } }),
+                    breakdown: sentimentStats
+                }
             }
         });
 
     } catch (err) {
         console.error('Get ticket stats error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ============================================================
+// 📊 TICKET SENTIMENT STATS (Admin)
+// ============================================================
+router.get('/admin/sentiment-stats', adminAuth, async (req, res) => {
+    try {
+        const stats = await Ticket.aggregate([
+            {
+                $group: {
+                    _id: '$sentiment.label',
+                    count: { $sum: 1 },
+                    avgScore: { $avg: '$sentiment.score' }
+                }
+            }
+        ]);
+
+        const total = await Ticket.countDocuments();
+        const withSentiment = await Ticket.countDocuments({ 'sentiment.label': { $ne: null } });
+
+        res.json({
+            success: true,
+            stats: {
+                total,
+                withSentiment,
+                breakdown: stats,
+                sentimentRate: total > 0 ? Math.round((withSentiment / total) * 100) : 0
+            }
+        });
+
+    } catch (err) {
+        console.error('Get sentiment stats error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ============================================================
+// 📊 GET TICKETS BY SENTIMENT (Admin)
+// ============================================================
+router.get('/admin/by-sentiment/:label', adminAuth, async (req, res) => {
+    try {
+        const { label } = req.params;
+        const { limit = 20 } = req.query;
+
+        const validLabels = ['positive', 'negative', 'neutral', 'mixed'];
+        if (!validLabels.includes(label)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid sentiment label. Use: positive, negative, neutral, mixed'
+            });
+        }
+
+        const tickets = await Ticket.find({ 'sentiment.label': label })
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit))
+            .populate('userId', 'name email')
+            .populate('assignedTo', 'name email');
+
+        res.json({
+            success: true,
+            label,
+            count: tickets.length,
+            tickets
+        });
+
+    } catch (err) {
+        console.error('Get tickets by sentiment error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ============================================================
+// 📊 GET ESCALATED TICKETS (Admin)
+// ============================================================
+router.get('/admin/escalated', adminAuth, async (req, res) => {
+    try {
+        const { limit = 50 } = req.query;
+
+        const tickets = await Ticket.find({ escalated: true })
+            .sort({ escalatedAt: -1 })
+            .limit(parseInt(limit))
+            .populate('userId', 'name email')
+            .populate('assignedTo', 'name email');
+
+        res.json({
+            success: true,
+            count: tickets.length,
+            tickets
+        });
+
+    } catch (err) {
+        console.error('Get escalated tickets error:', err);
         res.status(500).json({ success: false, message: err.message });
     }
 });

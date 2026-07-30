@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const auth = require('../middleware/auth');
 const User = require('../models/User');
-const Shipment = require('../models/Shipment'); // ADD THIS
+const Shipment = require('../models/Shipment');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -44,7 +44,9 @@ const uploadProfilePic = multer({
     fileFilter: profileFileFilter
 }).single('profilePicture');
 
-// ===== GET USER PROFILE =====
+// ============================================================
+// 👤 GET USER PROFILE
+// ============================================================
 router.get('/profile', auth, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-password');
@@ -54,32 +56,76 @@ router.get('/profile', auth, async (req, res) => {
     }
 });
 
-// ===== UPDATE USER PROFILE (name AND email) =====
+// ============================================================
+// 👤 UPDATE USER PROFILE - ✅ WITH PHONE SUPPORT
+// ============================================================
 router.put('/profile', auth, async (req, res) => {
     try {
-        const { name, email } = req.body;
+        const { name, email, phone } = req.body;
         
         // Check if email is already taken by another user
         if (email) {
             const existingUser = await User.findOne({ email, _id: { $ne: req.user.id } });
             if (existingUser) {
-                return res.status(400).json({ message: 'Email already in use by another account' });
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Email already in use by another account' 
+                });
             }
         }
         
+        // ✅ Check if phone is already taken by another user
+        if (phone) {
+            // Validate phone format (basic validation)
+            const phoneRegex = /^\+?[0-9]{10,15}$/;
+            if (!phoneRegex.test(phone.replace(/\s/g, ''))) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid phone number format. Use +251XXXXXXXXX'
+                });
+            }
+            
+            const existingUser = await User.findOne({ 
+                phone: phone, 
+                _id: { $ne: req.user.id } 
+            });
+            if (existingUser) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Phone number already in use by another account' 
+                });
+            }
+        }
+        
+        // Build update object
+        const updateData = {};
+        if (name) updateData.name = name;
+        if (email) updateData.email = email;
+        if (phone) updateData.phone = phone;
+        
         const user = await User.findByIdAndUpdate(
             req.user.id,
-            { name, email },
-            { new: true }
+            updateData,
+            { new: true, runValidators: true }
         ).select('-password');
         
-        res.json({ success: true, user });
+        res.json({ 
+            success: true, 
+            message: 'Profile updated successfully',
+            user 
+        });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error('Profile update error:', err);
+        res.status(500).json({ 
+            success: false, 
+            message: err.message 
+        });
     }
 });
 
-// ===== UPLOAD PROFILE PICTURE =====
+// ============================================================
+// 📸 UPLOAD PROFILE PICTURE
+// ============================================================
 router.post('/upload-profile-pic', auth, (req, res) => {
     uploadProfilePic(req, res, async (err) => {
         if (err) {
@@ -131,7 +177,9 @@ router.post('/upload-profile-pic', auth, (req, res) => {
     });
 });
 
-// ===== REMOVE PROFILE PICTURE =====
+// ============================================================
+// 🗑️ REMOVE PROFILE PICTURE
+// ============================================================
 router.delete('/remove-profile-pic', auth, async (req, res) => {
     try {
         const user = await User.findById(req.user.id);
@@ -155,7 +203,9 @@ router.delete('/remove-profile-pic', auth, async (req, res) => {
     }
 });
 
-// ===== CHANGE PASSWORD =====
+// ============================================================
+// 🔑 CHANGE PASSWORD
+// ============================================================
 router.put('/change-password', auth, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
@@ -164,20 +214,39 @@ router.put('/change-password', auth, async (req, res) => {
         // Check current password
         const isMatch = await user.comparePassword(currentPassword);
         if (!isMatch) {
-            return res.status(400).json({ message: 'Current password is incorrect' });
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Current password is incorrect' 
+            });
+        }
+        
+        // Validate new password
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'New password must be at least 6 characters'
+            });
         }
         
         // Update password
         user.password = newPassword;
         await user.save();
         
-        res.json({ success: true, message: 'Password updated successfully' });
+        res.json({ 
+            success: true, 
+            message: 'Password updated successfully' 
+        });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ 
+            success: false, 
+            message: err.message 
+        });
     }
 });
 
-// ===== DELETE ACCOUNT =====
+// ============================================================
+// 🗑️ DELETE ACCOUNT
+// ============================================================
 router.delete('/account', auth, async (req, res) => {
     try {
         // Delete profile picture if exists
@@ -189,13 +258,21 @@ router.delete('/account', auth, async (req, res) => {
             }
         }
         await User.findByIdAndDelete(req.user.id);
-        res.json({ success: true, message: 'Account deleted' });
+        res.json({ 
+            success: true, 
+            message: 'Account deleted successfully' 
+        });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        res.status(500).json({ 
+            success: false, 
+            message: err.message 
+        });
     }
 });
 
-// ===== GENERATE INVOICE FOR SHIPMENT (ADD THIS) =====
+// ============================================================
+// 📄 GENERATE INVOICE FOR SHIPMENT
+// ============================================================
 router.get('/invoice/:trackingNumber', auth, async (req, res) => {
     try {
         const shipment = await Shipment.findOne({ 
@@ -204,7 +281,10 @@ router.get('/invoice/:trackingNumber', auth, async (req, res) => {
         });
         
         if (!shipment) {
-            return res.status(404).json({ success: false, message: 'Shipment not found' });
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Shipment not found' 
+            });
         }
         
         const user = await User.findById(req.user.id);
@@ -213,7 +293,10 @@ router.get('/invoice/:trackingNumber', auth, async (req, res) => {
         generateInvoice(shipment, user, res);
     } catch (err) {
         console.error('Invoice error:', err);
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ 
+            success: false, 
+            message: err.message 
+        });
     }
 });
 

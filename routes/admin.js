@@ -5,29 +5,251 @@ const Contact = require('../models/Contact');
 const Application = require('../models/Application');
 const Shipment = require('../models/Shipment');
 const User = require('../models/User');
-const Rating = require('../models/Rating'); // ADDED
-const mongoose = require('mongoose'); // ADDED
+const Rating = require('../models/Rating');
+const mongoose = require('mongoose');
 const { createAuditLog } = require('../middleware/audit');
-const { createNotification } = require('./notification');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 
-// ===== DASHBOARD STATISTICS =====
+// ============================================================
+// ✅ NOTIFICATION HELPER (inline to avoid circular dependency)
+// ============================================================
+async function createNotification(userId, title, message, type = 'info', link = null) {
+    try {
+        const Notification = require('../models/Notification');
+        const notification = new Notification({
+            userId: userId,
+            title: title,
+            message: message,
+            type: type,
+            link: link,
+            read: false,
+            createdAt: new Date()
+        });
+        await notification.save();
+        return notification;
+    } catch (err) {
+        console.error('❌ Failed to create notification:', err.message);
+        return null;
+    }
+}
+
+// ============================================================
+// 🆕 ANOMALY MODEL REFERENCE
+// ============================================================
+let AnomalyLog = null;
+try {
+    AnomalyLog = require('../models/AnomalyLog');
+    console.log('✅ AnomalyLog model loaded for admin stats');
+} catch (e) {
+    console.log('⚠️ AnomalyLog model not available:', e.message);
+}
+
+// ============================================================
+// ===== DASHBOARD STATISTICS WITH ANOMALY STATS =====
+// ============================================================
 router.get('/stats', adminAuth, async (req, res, next) => {
     try {
         const contacts = await Contact.countDocuments();
         const applications = await Application.countDocuments();
         const shipments = await Shipment.countDocuments();
         const users = await User.countDocuments();
-        res.json({ contacts, applications, shipments, users });
+        
+        // ===== 🆕 ANOMALY STATS =====
+        let anomalies = 0;
+        let criticalAnomalies = 0;
+        let detectedAnomalies = 0;
+        let investigatingAnomalies = 0;
+        let confirmedAnomalies = 0;
+        let falseAlarms = 0;
+        let resolvedAnomalies = 0;
+        
+        if (AnomalyLog) {
+            try {
+                // Total active anomalies (not resolved or false alarm)
+                anomalies = await AnomalyLog.countDocuments({ 
+                    status: { $in: ['detected', 'investigating', 'confirmed'] } 
+                });
+                
+                // Critical anomalies
+                criticalAnomalies = await AnomalyLog.countDocuments({ 
+                    severity: 'critical',
+                    status: { $in: ['detected', 'investigating', 'confirmed'] }
+                });
+                
+                // Status breakdown
+                detectedAnomalies = await AnomalyLog.countDocuments({ status: 'detected' });
+                investigatingAnomalies = await AnomalyLog.countDocuments({ status: 'investigating' });
+                confirmedAnomalies = await AnomalyLog.countDocuments({ status: 'confirmed' });
+                falseAlarms = await AnomalyLog.countDocuments({ status: 'false_alarm' });
+                resolvedAnomalies = await AnomalyLog.countDocuments({ status: 'resolved' });
+                
+            } catch (e) {
+                console.log('⚠️ Anomaly stats query error:', e.message);
+            }
+        }
+        
+        // ===== SLA Stats =====
+        const totalShipments = shipments;
+        const deliveredShipments = await Shipment.countDocuments({ status: 'delivered' });
+        const failedShipments = await Shipment.countDocuments({ status: 'failed' });
+        const onTimeDeliveries = await Shipment.countDocuments({ 
+            status: 'delivered',
+            'deliveryProof.deliveredAt': { $lte: '$estimatedDelivery' }
+        });
+        
+        const deliveryRate = totalShipments > 0 ? Math.round((deliveredShipments / totalShipments) * 100) : 0;
+        const onTimeRate = deliveredShipments > 0 ? Math.round((onTimeDeliveries / deliveredShipments) * 100) : 0;
+        
+        // ===== Driver Stats =====
+        const totalDrivers = await User.countDocuments({ role: 'driver' });
+        const availableDrivers = await User.countDocuments({ role: 'driver', driverStatus: 'available' });
+        const onlineDrivers = await User.countDocuments({ 
+            role: 'driver', 
+            driverStatus: { $in: ['available', 'on_delivery'] } 
+        });
+        
+        // ===== Rating Stats =====
+        let avgRating = 0;
+        let totalRatings = 0;
+        try {
+            const ratingStats = await Rating.aggregate([
+                { $group: {
+                    _id: null,
+                    avg: { $avg: '$overallRating' },
+                    count: { $sum: 1 }
+                }}
+            ]);
+            if (ratingStats.length > 0) {
+                avgRating = Math.round(ratingStats[0].avg * 10) / 10;
+                totalRatings = ratingStats[0].count;
+            }
+        } catch (e) {
+            console.log('⚠️ Rating stats error:', e.message);
+        }
+        
+        // ===== Revenue Stats =====
+        const totalRevenue = await Shipment.aggregate([
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]);
+        const revenue = totalRevenue.length > 0 ? totalRevenue[0].total : 0;
+        
+        // ===== Recent Activity =====
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const recentShipments = await Shipment.countDocuments({
+            createdAt: { $gte: thirtyDaysAgo }
+        });
+        
+        const recentUsers = await User.countDocuments({
+            createdAt: { $gte: thirtyDaysAgo }
+        });
+        
+        const recentAnomalies = AnomalyLog ? await AnomalyLog.countDocuments({
+            createdAt: { $gte: thirtyDaysAgo }
+        }) : 0;
+        
+        res.json({ 
+            contacts, 
+            applications, 
+            shipments, 
+            users,
+            // ===== 🆕 Anomaly Stats =====
+            anomalies,
+            criticalAnomalies,
+            detectedAnomalies,
+            investigatingAnomalies,
+            confirmedAnomalies,
+            falseAlarms,
+            resolvedAnomalies,
+            // ===== SLA Stats =====
+            deliveryRate,
+            onTimeRate,
+            deliveredShipments,
+            failedShipments,
+            // ===== Driver Stats =====
+            totalDrivers,
+            availableDrivers,
+            onlineDrivers,
+            // ===== Rating Stats =====
+            avgRating,
+            totalRatings,
+            // ===== Revenue =====
+            revenue: Math.round(revenue * 100) / 100,
+            // ===== Recent Activity =====
+            recentShipments,
+            recentUsers,
+            recentAnomalies,
+            // ===== Timestamp =====
+            timestamp: new Date().toISOString()
+        });
     } catch (err) {
+        console.error('❌ Stats error:', err);
         next(err);
     }
 });
 
+// ============================================================
+// 🆕 GET ANOMALY SUMMARY FOR ADMIN DASHBOARD
+// ============================================================
+router.get('/anomaly-summary', adminAuth, async (req, res, next) => {
+    try {
+        if (!AnomalyLog) {
+            return res.json({
+                success: true,
+                summary: {
+                    total: 0,
+                    critical: 0,
+                    high: 0,
+                    medium: 0,
+                    low: 0,
+                    detected: 0,
+                    investigating: 0,
+                    confirmed: 0,
+                    falseAlarms: 0,
+                    resolved: 0
+                }
+            });
+        }
+        
+        const summary = {
+            total: await AnomalyLog.countDocuments(),
+            critical: await AnomalyLog.countDocuments({ severity: 'critical' }),
+            high: await AnomalyLog.countDocuments({ severity: 'high' }),
+            medium: await AnomalyLog.countDocuments({ severity: 'medium' }),
+            low: await AnomalyLog.countDocuments({ severity: 'low' }),
+            detected: await AnomalyLog.countDocuments({ status: 'detected' }),
+            investigating: await AnomalyLog.countDocuments({ status: 'investigating' }),
+            confirmed: await AnomalyLog.countDocuments({ status: 'confirmed' }),
+            falseAlarms: await AnomalyLog.countDocuments({ status: 'false_alarm' }),
+            resolved: await AnomalyLog.countDocuments({ status: 'resolved' })
+        };
+        
+        // Get recent anomalies
+        const recent = await AnomalyLog.find()
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .populate('driverId', 'name')
+            .populate('userId', 'name');
+        
+        res.json({
+            success: true,
+            summary,
+            recent
+        });
+        
+    } catch (err) {
+        console.error('❌ Anomaly summary error:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// ============================================================
 // ===== CONTACTS =====
+// ============================================================
 router.get('/contacts', adminAuth, async (req, res, next) => {
     try {
         const contacts = await Contact.find().sort({ createdAt: -1 });
@@ -49,7 +271,9 @@ router.delete('/contacts/:id', adminAuth, async (req, res, next) => {
     }
 });
 
+// ============================================================
 // ===== APPLICATIONS =====
+// ============================================================
 router.get('/applications', adminAuth, async (req, res, next) => {
     try {
         const apps = await Application.find().sort({ createdAt: -1 });
@@ -71,7 +295,9 @@ router.delete('/applications/:id', adminAuth, async (req, res, next) => {
     }
 });
 
-// ===== GET SINGLE APPLICATION =====
+// ============================================================
+// GET SINGLE APPLICATION
+// ============================================================
 router.get('/applications/:id', adminAuth, async (req, res, next) => {
     try {
         const application = await Application.findById(req.params.id);
@@ -84,7 +310,9 @@ router.get('/applications/:id', adminAuth, async (req, res, next) => {
     }
 });
 
-// ===== DOWNLOAD CV =====
+// ============================================================
+// DOWNLOAD CV
+// ============================================================
 router.get('/applications/:id/download-cv', async (req, res, next) => {
     try {
         const token = req.query.token;
@@ -132,7 +360,9 @@ router.get('/applications/:id/download-cv', async (req, res, next) => {
     }
 });
 
-// ===== APPROVE APPLICATION =====
+// ============================================================
+// APPROVE APPLICATION
+// ============================================================
 router.put('/applications/:id/approve', adminAuth, async (req, res, next) => {
     try {
         const { reviewNote } = req.body;
@@ -157,7 +387,9 @@ router.put('/applications/:id/approve', adminAuth, async (req, res, next) => {
     }
 });
 
-// ===== REJECT APPLICATION =====
+// ============================================================
+// REJECT APPLICATION
+// ============================================================
 router.put('/applications/:id/reject', adminAuth, async (req, res, next) => {
     try {
         const { reviewNote } = req.body;
@@ -182,7 +414,9 @@ router.put('/applications/:id/reject', adminAuth, async (req, res, next) => {
     }
 });
 
-// ===== CV PREVIEW =====
+// ============================================================
+// CV PREVIEW
+// ============================================================
 router.get('/applications/:id/cv', async (req, res, next) => {
     try {
         const token = req.query.token || req.headers.authorization?.split(' ')[1];
@@ -236,7 +470,9 @@ router.get('/applications/:id/cv', async (req, res, next) => {
     }
 });
 
+// ============================================================
 // ===== SHIPMENTS =====
+// ============================================================
 router.get('/shipments', adminAuth, async (req, res, next) => {
     try {
         const shipments = await Shipment.find().sort({ createdAt: -1 }).populate('userId', 'name email');
@@ -322,7 +558,9 @@ router.delete('/shipments/:trackingNumber', adminAuth, async (req, res, next) =>
     }
 });
 
-// ===== 🔥 UPDATE SHIPMENT COST =====
+// ============================================================
+// 🔥 UPDATE SHIPMENT COST
+// ============================================================
 router.put('/shipments/:trackingNumber/update-cost', adminAuth, async (req, res, next) => {
     try {
         const { cost } = req.body;
@@ -368,7 +606,9 @@ router.put('/shipments/:trackingNumber/update-cost', adminAuth, async (req, res,
     }
 });
 
-// ===== SHIPMENT NOTES =====
+// ============================================================
+// SHIPMENT NOTES
+// ============================================================
 router.post('/shipments/:trackingNumber/notes', adminAuth, async (req, res, next) => {
     try {
         const { text } = req.body;
@@ -410,7 +650,9 @@ router.get('/shipments/:trackingNumber/notes', adminAuth, async (req, res, next)
     }
 });
 
-// ===== DELIVERY PROOF PHOTO =====
+// ============================================================
+// DELIVERY PROOF PHOTO
+// ============================================================
 const uploadDir = path.join(__dirname, '../uploads/delivery-proofs');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -558,7 +800,9 @@ router.get('/shipments/:trackingNumber/delivery-photo', adminAuth, async (req, r
     }
 });
 
+// ============================================================
 // ===== USERS =====
+// ============================================================
 router.get('/users', adminAuth, async (req, res, next) => {
     try {
         const users = await User.find().select('-password').sort({ createdAt: -1 });
@@ -605,7 +849,9 @@ router.put('/users/:id/make-admin', adminAuth, async (req, res, next) => {
     }
 });
 
+// ============================================================
 // ===== ACCOUNT LOCK ROUTES =====
+// ============================================================
 router.put('/users/:id/unlock', adminAuth, async (req, res, next) => {
     try {
         const user = await User.findById(req.params.id);
@@ -675,7 +921,9 @@ router.get('/users/:id/lock-status', adminAuth, async (req, res, next) => {
     }
 });
 
+// ============================================================
 // ==================== DRIVER MANAGEMENT ====================
+// ============================================================
 router.get('/drivers', adminAuth, async (req, res, next) => {
     try {
         const drivers = await User.find({ role: 'driver' })
@@ -835,7 +1083,9 @@ router.get('/drivers/stats/summary', adminAuth, async (req, res, next) => {
     }
 });
 
+// ============================================================
 // ==================== ASSIGN DRIVER TO SHIPMENT ====================
+// ============================================================
 router.put('/shipments/:trackingNumber/assign-driver', adminAuth, async (req, res, next) => {
     try {
         const { driverId } = req.body;
@@ -1101,7 +1351,9 @@ router.get('/reports/revenue-growth', adminAuth, async (req, res, next) => {
     }
 });
 
-// ==================== DRIVER PERFORMANCE RANKING ====================
+// ============================================================
+// DRIVER PERFORMANCE RANKING
+// ============================================================
 router.get('/reports/driver-performance', adminAuth, async (req, res, next) => {
     try {
         const { period = 'month' } = req.query;
@@ -1226,7 +1478,9 @@ router.get('/reports/driver-performance', adminAuth, async (req, res, next) => {
     }
 });
 
-// ==================== REVENUE & DELIVERY FORECASTING ====================
+// ============================================================
+// REVENUE & DELIVERY FORECASTING
+// ============================================================
 router.get('/reports/forecast', adminAuth, async (req, res, next) => {
     try {
         const { months = 6 } = req.query;
@@ -1692,7 +1946,6 @@ router.get('/reports/customer-analytics', adminAuth, async (req, res, next) => {
 // ================================================================
 // FAILED DELIVERY ANALYSIS - FIXED
 // ================================================================
-
 const failureReasonLabels = {
     'wrong_address': '📍 Wrong Address',
     'customer_not_home': '🏠 Customer Not Home',
@@ -1913,11 +2166,6 @@ router.get('/reports/failed-delivery-analysis', adminAuth, async (req, res, next
 // ================================================================
 // 🆕 GEOGRAPHIC DELIVERY ANALYTICS
 // ================================================================
-
-/**
- * GET /api/admin/reports/geographic-analytics
- * Returns delivery analytics by location
- */
 router.get('/reports/geographic-analytics', adminAuth, async (req, res, next) => {
     try {
         const { period = 'month' } = req.query;
@@ -2263,7 +2511,6 @@ router.get('/reports/profit-analysis', adminAuth, async (req, res, next) => {
 // ================================================================
 // ⭐ ADMIN RATING ROUTES
 // ================================================================
-
 // Get all ratings
 router.get('/ratings', adminAuth, async (req, res, next) => {
     try {
