@@ -930,7 +930,30 @@ app.get('/api/tracking/:trackingNumber', async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 });
+// ============================================================
+// 📖 SWAGGER UI & OPENAPI SPECIFICATION
+// ============================================================
+app.get('/api-docs.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerDocument);
+});
 
+app.use(
+    '/api-docs',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerDocument, {
+        explorer: true,
+        customSiteTitle: "TAMYOKIY Logistics API Documentation",
+        swaggerOptions: {
+            docExpansion: 'none',
+            filter: true,
+            persistAuthorization: true
+        }
+    })
+);
+
+console.log('📖 Swagger UI mounted at: /api-docs');
+console.log('📄 Raw OpenAPI JSON spec available at: /api-docs.json');
 // ============================================================
 // 🔥 ROUTES - With proper error handling
 // ============================================================

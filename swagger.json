@@ -1,126 +1,560 @@
 {
-    "openapi": "3.0.0",
-    "info": {
-      "title": "TAMYOKIY Logistics API",
-      "description": "B2B Logistics Platform API",
-      "version": "1.0.0",
-      "contact": {
-        "name": "TAMYOKIY Support",
-        "email": "support@tamyokiy.com"
-      }
+  "openapi": "3.0.0",
+  "info": {
+    "title": "TAMYOKIY Logistics API",
+    "description": "Comprehensive API for the TAMYOKIY Logistics platform. Includes customer-facing shipment tracking, payments, insurance claims, chat, notifications, ETA prediction, admin management, warehouse operations, fleet management, anomaly detection, sentiment analysis, and B2B integration via API keys (x-api-key header).\n\n## Authentication\n- **JWT Bearer Token**: Login or register to get a token. Send as `Authorization: Bearer <token>`.\n- **API Key**: B2B clients use `x-api-key` header for `/api/v1` routes.\n- **Admin**: Admin routes require a JWT token for a user with role `admin`.\n\nUse the **Authorize** button to configure either security scheme.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "TAMYOKIY Support",
+      "email": "support@tamyokiy.com"
     },
-    "servers": [
-      {
-        "url": "https://api.tamyokiy.com/api/v1",
-        "description": "Production Server"
-      },
-      {
-        "url": "http://localhost:5000/api/v1",
-        "description": "Development Server"
-      }
-    ],
-    "security": [
-      {
-        "ApiKeyAuth": []
-      }
-    ],
-    "paths": {
-      "/shipments": {
-        "get": {
-          "summary": "List all shipments",
-          "parameters": [
-            {
-              "name": "status",
-              "in": "query",
-              "schema": {
-                "type": "string",
-                "enum": ["pending", "assigned", "in_transit", "delivered", "cancelled"]
-              }
-            }
-          ],
-          "responses": {
-            "200": {
-              "description": "List of shipments"
-            }
-          }
-        },
-        "post": {
-          "summary": "Create a new shipment",
-          "requestBody": {
-            "required": true,
+    "license": {
+      "name": "Proprietary"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Development Server"
+    },
+    {
+      "url": "https://tamyokiy-backend.onrender.com",
+      "description": "Production Server"
+    },
+    {
+      "url": "https://api.tamyokiy.com/api/v1",
+      "description": "B2B API (Production)"
+    }
+  ],
+  "tags": [
+    { "name": "System", "description": "Health, docs, translations" },
+    { "name": "Auth", "description": "Authentication & registration (JWT)" },
+    { "name": "OTP", "description": "Email & phone OTP verification" },
+    { "name": "Tracking", "description": "Shipment tracking & creation" },
+    { "name": "Public", "description": "Public endpoints (no auth required)" },
+    { "name": "Payments", "description": "Payments, checkouts, invoices" },
+    { "name": "Refunds", "description": "Refund requests" },
+    { "name": "User", "description": "User profile & account management" },
+    { "name": "Client", "description": "Client dashboard data" },
+    { "name": "Driver", "description": "Driver operations & routes" },
+    { "name": "Driver Location", "description": "Driver GPS location" },
+    { "name": "Admin", "description": "Admin dashboard & management" },
+    { "name": "Warehouse", "description": "Warehouse & inventory management" },
+    { "name": "Warehouse Client", "description": "Warehouse client operations" },
+    { "name": "Warehouse Driver", "description": "Warehouse driver pickups" },
+    { "name": "Warehouse Forecast", "description": "Warehouse demand forecasting" },
+    { "name": "Fleet", "description": "Fleet vehicle management" },
+    { "name": "Insurance", "description": "Insurance claims" },
+    { "name": "Chat", "description": "User chat & messaging" },
+    { "name": "Messages", "description": "Structured messages" },
+    { "name": "Notifications", "description": "Push notifications" },
+    { "name": "ETA", "description": "ETA prediction & delay risk" },
+    { "name": "Routes", "description": "Delivery routes & stops" },
+    { "name": "Ratings", "description": "Ratings & reviews" },
+    { "name": "API Keys", "description": "API key management" },
+    { "name": "B2B (v1)", "description": "B2B API with x-api-key authentication" },
+    { "name": "Webhooks", "description": "Webhook subscriptions" },
+    { "name": "Carbon", "description": "Carbon footprint tracking" },
+    { "name": "Anomaly", "description": "Anomaly detection" },
+    { "name": "Sentiment", "description": "Sentiment analysis" },
+    { "name": "Assignment", "description": "Driver assignment" },
+    { "name": "Tickets", "description": "Support tickets" },
+    { "name": "Login History", "description": "User login history" },
+    { "name": "Audit", "description": "Admin audit logs" },
+    { "name": "Optimization", "description": "Route optimization" },
+    { "name": "Contact", "description": "Contact & inquiries" },
+    { "name": "Careers", "description": "Careers & applications" }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "description": "Check server status, MongoDB connection, and loaded models",
+        "responses": {
+          "200": {
+            "description": "Server health status",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "pickupAddress": {"type": "object"},
-                    "deliveryAddress": {"type": "object"},
-                    "packageDetails": {"type": "string"},
-                    "weight": {"type": "number"},
-                    "priority": {"type": "string", "enum": ["standard", "express", "premium"]}
+                    "status": { "type": "string", "example": "OK" },
+                    "message": { "type": "string" },
+                    "timestamp": { "type": "string", "format": "date-time" },
+                    "version": { "type": "string" },
+                    "models": { "type": "integer" },
+                    "mongodb": { "type": "string", "example": "connected" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/docs": {
+      "get": {
+        "tags": ["System"],
+        "summary": "API documentation summary (JSON)",
+        "description": "Returns a JSON summary of available API endpoints and registered models",
+        "responses": {
+          "200": { "description": "API documentation summary" }
+        }
+      }
+    },
+    "/api-docs.json": {
+      "get": {
+        "tags": ["System"],
+        "summary": "OpenAPI 3.0 specification (JSON)",
+        "description": "Returns the full OpenAPI specification consumed by Swagger UI",
+        "responses": {
+          "200": { "description": "OpenAPI specification" }
+        }
+      }
+    },
+    "/api/translations": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Get UI translations",
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["en", "ar"] },
+            "description": "Language code (default: en or cookie value)"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Translations for the requested language" }
+        }
+      }
+    },
+    "/api/language": {
+      "post": {
+        "tags": ["System"],
+        "summary": "Switch language",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["language"],
+                "properties": {
+                  "language": { "type": "string", "enum": ["en", "ar"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Language switched" },
+          "400": { "description": "Invalid language" }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new client",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email", "password", "phone"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 2 },
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "minLength": 6 },
+                  "phone": { "type": "string" },
+                  "role": { "type": "string", "enum": ["client", "driver", "admin"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "token": { "type": "string" },
+                    "user": { "$ref": "#/components/schemas/User" }
                   }
                 }
               }
             }
           },
-          "responses": {
-            "201": {
-              "description": "Shipment created"
-            }
-          }
+          "400": { "description": "Validation error or user exists" }
         }
-      },
-      "/tracking/{trackingNumber}": {
-        "get": {
-          "summary": "Public shipment tracking",
-          "parameters": [
-            {
-              "name": "trackingNumber",
-              "in": "path",
-              "required": true,
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login with email & password",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
               "schema": {
-                "type": "string"
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string" }
+                }
               }
             }
-          ],
-          "responses": {
-            "200": {
-              "description": "Tracking information"
-            }
           }
-        }
-      },
-      "/webhooks": {
-        "get": {
-          "summary": "List webhook subscriptions"
         },
-        "post": {
-          "summary": "Create webhook subscription",
-          "requestBody": {
-            "required": true,
+        "responses": {
+          "200": {
+            "description": "Login successful",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "url": {"type": "string", "format": "uri"},
-                    "events": {"type": "array", "items": {"type": "string"}},
-                    "secret": {"type": "string"}
+                    "success": { "type": "boolean" },
+                    "token": { "type": "string", "description": "JWT token. Use with Authorization: Bearer <token>" },
+                    "user": { "$ref": "#/components/schemas/User" }
                   }
                 }
               }
             }
-          }
+          },
+          "400": { "description": "Invalid credentials" }
         }
       }
     },
-    "components": {
-      "securitySchemes": {
-        "ApiKeyAuth": {
-          "type": "apiKey",
-          "in": "header",
-          "name": "x-api-key"
+    "/api/auth/register-driver": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new driver",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email", "password", "phone", "licenseNumber", "vehicleType"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "minLength": 6 },
+                  "phone": { "type": "string" },
+                  "licenseNumber": { "type": "string" },
+                  "vehicleType": { "type": "string", "enum": ["bike", "car", "van", "truck", "heavy_truck"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Driver registered" },
+          "400": { "description": "Validation error or driver exists" }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get current user profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Current user (password excluded)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "user": { "$ref": "#/components/schemas/User" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "No token provided" }
+        }
+      }
+    },
+    "/api/auth/send-email-otp": {
+      "post": {
+        "tags": ["OTP"],
+        "summary": "Send email verification OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP sent (dev returns token & otp in response)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "token": { "type": "string" },
+                    "otp": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Email required" }
+        }
+      }
+    },
+    "/api/auth/verify-email-otp": {
+      "post": {
+        "tags": ["OTP"],
+        "summary": "Verify email OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "code", "token"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "code": { "type": "string" },
+                  "token": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Email verified" },
+          "400": { "description": "Invalid/expired code" }
+        }
+      }
+    },
+    "/api/auth/send-phone-otp": {
+      "post": {
+        "tags": ["OTP"],
+        "summary": "Send phone verification OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone"],
+                "properties": {
+                  "phone": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OTP sent" },
+          "400": { "description": "Phone number required" }
+        }
+      }
+    },
+    "/api/auth/verify-phone-otp": {
+      "post": {
+        "tags": ["OTP"],
+        "summary": "Verify phone OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone", "code", "token"],
+                "properties": {
+                  "phone": { "type": "string" },
+                  "code": { "type": "string" },
+                  "token": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Phone verified" },
+          "400": { "description": "Invalid/expired code" }
+        }
+      }
+    },
+    "/api/tracking": {
+      "post": {
+        "tags": ["Tracking"],
+        "summary": "Create a shipment (authenticated)",
+        "description": "Creates a shipment, generates QR/barcode, and triggers auto-assignment",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["senderName", "senderAddress", "receiverName", "receiverAddress", "weight"],
+                "properties": {
+                  "senderName": { "type": "string" },
+                  "senderAddress": { "type": "string" },
+                  "receiverName": { "type": "string" },
+                  "receiverAddress": { "type": "string" },
+                  "weight": { "type": "number", "minimum": 0.1 },
+                  "distance": { "type": "number" },
+                  "serviceType": { "type": "string", "enum": ["standard", "express", "overnight"] },
+                  "senderLat": { "type": "number" },
+                  "senderLng": { "type": "number" },
+                  "receiverLat": { "type": "number" },
+                  "receiverLng": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Shipment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "trackingNumber": { "type": "string" },
+                    "amount": { "type": "number" },
+                    "estimatedDelivery": { "type": "string", "format": "date" },
+                    "qrCode": { "type": "string" },
+                    "barcode": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/tracking/{trackingNumber}": {
+      "get": {
+        "tags": ["Tracking"],
+        "summary": "Get shipment by tracking number",
+        "description": "Public tracking - does not require auth.",
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shipment details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Shipment" }
+              }
+            }
+          },
+          "404": { "description": "Shipment not found" }
+        }
+      },
+      "put": {
+        "tags": ["Tracking"],
+        "summary": "Update shipment coordinates",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "trackingNumber",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "string", "enum": ["pending", "picked", "in_transit", "delivered", "cancelled"] },
+                  "currentLat": { "type": "number" },
+                  "currentLng": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Shipment updated successfully" },
+          "404": { "description": "Shipment not found" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your JWT Bearer token."
+      },
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "B2B client API key authentication."
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "phone": { "type": "string" },
+          "role": { "type": "string", "enum": ["client", "driver", "admin"] },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Shipment": {
+        "type": "object",
+        "properties": {
+          "trackingNumber": { "type": "string" },
+          "senderName": { "type": "string" },
+          "senderAddress": { "type": "string" },
+          "receiverName": { "type": "string" },
+          "receiverAddress": { "type": "string" },
+          "status": { "type": "string" },
+          "weight": { "type": "number" },
+          "estimatedDelivery": { "type": "string", "format": "date" }
         }
       }
     }
   }
+}
