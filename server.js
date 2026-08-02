@@ -10,6 +10,8 @@ const fs = require('fs');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('./swagger.json');
 
 // ============================================================
 // 📦 LOAD ENV
@@ -1008,11 +1010,6 @@ app.use('/api/api-keys', safeRequire('./routes/apiKeys', 'API Keys service unava
 app.use('/api/insurance', safeRequire('./routes/insurance', 'Insurance service unavailable'));
 
 // ============================================================
-// 🛡️ INSURANCE ROUTES - ADDED HERE
-// ============================================================
-app.use('/api/insurance', safeRequire('./routes/insurance', 'Insurance service unavailable'));
-
-// ============================================================
 // 💬 CHAT ROUTES
 // ============================================================
 app.use('/api/chat', safeRequire('./routes/chat', 'Chat service unavailable'));
@@ -1390,6 +1387,8 @@ app.listen(PORT, () => {
     console.log(`📍 Create with User: http://localhost:${PORT}/api/tracking/create-with-user`);
     console.log(`📍 Chat API: http://localhost:${PORT}/api/chat`);
     console.log(`📍 API Docs: http://localhost:${PORT}/api/docs`);
+    console.log(`📖 Swagger UI: http://localhost:${PORT}/api-docs`);
+    console.log(`📄 Swagger JSON: http://localhost:${PORT}/api-docs.json`);
     console.log(`📦 Models loaded: ${Object.keys(mongoose.models).length}`);
 });
 
